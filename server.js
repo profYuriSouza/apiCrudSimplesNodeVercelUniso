@@ -129,10 +129,22 @@ async function bootstrap() {
   // --------------------------------------------------------------------------
   let usuarioRepo = null;
   let usuariosBackend = "mysql";
+  let mysqlConnected = false;
+  let mysqlHint = null;
   try {
     await initMySql();
     usuarioRepo = new UsuarioMySqlRepository(mysqlPool);
+    mysqlConnected = true;
   } catch (e) {
+    mysqlConnected = false;
+    // Dica específica quando URL interna do Railway estiver setada
+    if (
+      (process.env.MYSQL_URL || "").includes("mysql.railway.internal") &&
+      process.env.MYSQL_PUBLIC_URL
+    ) {
+      mysqlHint =
+        "MYSQL_URL aponta para 'mysql.railway.internal' (acesso interno). Use MYSQL_PUBLIC_URL para conexões externas (ex.: Vercel).";
+    }
     if (sqliteOk) {
       usuariosBackend = "sqlite";
       usuarioRepo = new UsuarioSqliteRepository(sqliteDb);
@@ -177,6 +189,16 @@ async function bootstrap() {
         produtos: produtosBackend === "json" ? `json:${produtosJsonPath}` : "memory",
         sqlite_file: sqliteOk ? sqlitePathInUse : null,
       },
+      status: {
+        mysql_connected: mysqlConnected,
+        sqlite_ok: sqliteOk,
+        produtos_json: produtosBackend === "json",
+        produtos_path: produtosBackend === "json" ? produtosJsonPath : null,
+        falling_back_to_memory: usuariosBackend === "memory" || notasBackend === "memory" || produtosBackend === "memory",
+      },
+      warnings: [
+        ...(mysqlHint ? [mysqlHint] : []),
+      ],
       descricao:
         "API didática com autenticação JWT e CRUD distribuído em 3 camadas de persistência: Usuários (MySQL), Produtos (JSON) e Notas Fiscais (SQLite).",
       requisitos_gerais: [
